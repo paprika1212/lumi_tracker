@@ -19,6 +19,20 @@
     display:flex; gap:8px; align-items:center;
   }
 
+  /* Pair controls on a single row and make them span full grid width */
+.inline-controls {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap; /* wrap nicely on small screens */
+}
+.inline-controls input[type="range"] {
+  width: 160px;         /* comfortable default */
+  max-width: 40vw;      /* responsive */
+}
+
+
   .ui {
     position:absolute; left:0; right:0; bottom:0; padding:10px 12px;
     background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.6) 30%, rgba(0,0,0,.9) 100%);
@@ -38,11 +52,11 @@
     box-sizing: border-box;
   }
   .ui.open #sliderPanel {
-  max-height: 40dvh; /* Set max height to 40% of the visible screen */
-  overflow-y: auto;  /* Add a scrollbar if the content is too tall */
-  padding-top: 10px;
-  padding-bottom: 10px; /* Add some space at the bottom for scrolling */
-}
+    max-height: 40dvh;
+    overflow-y: auto;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
 
   .ui label { display:flex; align-items:center; gap:8px; font-size:12px; white-space:nowrap; }
   .ui input[type=range] { width:22vw; max-width:180px; }
@@ -77,16 +91,31 @@
     <div id="sliderPanel">
       <label>Text:<select id="textColorSel" class="color-selector"></select></label>
       <label>Line:<select id="lineColorSel" class="color-selector"></select></label>
-      <label>Brightness:<input id="thr" type="range" min="100" max="700" value="250" step="5"></label>
+
+      <!-- NEW: Contrast control (50%–200%) -->
+      <label>Contrast:<input id="contrast" type="range" min="50" max="200" value="120" step="5"></label>
+
+      <label>Threshold:<input id="thr" type="range" min="100" max="700" value="250" step="5"></label>
       <label>Motion:<input id="mot" type="range" min="0" max="60" value="30" step="1"></label>
       <label>No. of pts:<input id="pts" type="range" min="4" max="40" value="16" step="1"></label>
       <label>Size:<input id="siz" type="range" min="0" max="24" value="10" step="1"></label>
       <label>No. of lines:<input id="lines" type="range" min="0" max="200" value="80" step="1"></label>
       <label>Link density:<input id="link" type="range" min="10" max="300" value="180" step="5"></label>
-      <label>Blocks:<input id="blocks" type="checkbox"></label>
-      <label>Windows:<input id="windows" type="checkbox"></label>
-      <label>Block Size:<input id="blkSize" type="range" min="10" max="80" value="20" step="1"></label>
-      <label>Win Size:<input id="winSize" type="range" min="10" max="80" value="20" step="1"></label>
+       <label class="inline-controls">
+  <span>Windows:</span>
+  <input id="windows" type="checkbox">
+  <span>Size:</span>
+  <input id="winSize" type="range" min="10" max="80" value="20" step="1">
+</label>
+
+<label class="inline-controls">
+  <span>Blocks:</span>
+  <input id="blocks" type="checkbox">
+  <span>Size:</span>
+  <input id="blkSize" type="range" min="10" max="80" value="20" step="1">
+</label>
+
+
     </div>
     <button class="btn" id="controlsToggle">Controls</button>
   </div>
@@ -113,6 +142,16 @@
   const blkSizeSlider = document.getElementById('blkSize');
   const winSizeSlider = document.getElementById('winSize');
 
+  // NEW: Contrast slider + factor (0.5–2.0)
+  const contrastSlider = document.getElementById('contrast');
+  let contrastFactor = 1.2; // default 120%
+  const contrastFromSlider = () => (parseInt(contrastSlider.value,10) / 100);
+  contrastSlider.oninput = () => {
+    contrastFactor = contrastFromSlider();
+    // also style the preview for user visual feedback
+    vid.style.filter = `contrast(${contrastFactor})`;
+  };
+
   blocksCheckbox.onchange = () => { if (blocksCheckbox.checked) windowsCheckbox.checked = false; };
   windowsCheckbox.onchange = () => { if (windowsCheckbox.checked) blocksCheckbox.checked = false; };
 
@@ -136,26 +175,71 @@
   setupColorSelector(textColorSel, (c) => textColor = c);
   setupColorSelector(lineColorSel, (c) => lineColor = c);
   
-  let facing='environment';
-  async function startCamera(){
-    if(vid.srcObject) vid.srcObject.getTracks().forEach(t=>t.stop());
-    const stream=await navigator.mediaDevices.getUserMedia({
-      video:{ facingMode: facing, width:{ideal:1920}, height:{ideal:1080} }, audio:false
-    });
-    vid.srcObject=stream; await vid.play();
-    vid.style.transform = (facing==='user') ? 'scaleX(-1)' : 'none';
+  // --- CAMERA SELECTION / FLIP FIX ---
+  let facing = 'environment';
+  let videoDevices = [];
+  let currentDeviceId = null;
+
+  async function refreshDevices() {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    videoDevices = devices.filter(d => d.kind === 'videoinput');
   }
+
+  async function startCamera() {
+    // stop old tracks
+    if (vid.srcObject) vid.srcObject.getTracks().forEach(t => t.stop());
+
+    // Try to pick by facingMode first; if that fails, fall back to deviceId rotation.
+    let constraints = { video: { width:{ideal:1920}, height:{ideal:1080}, facingMode: facing }, audio: false };
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      vid.srcObject = stream; await vid.play();
+      await refreshDevices();
+
+      // try to record which deviceId we got (when available)
+      const track = stream.getVideoTracks()[0];
+      const settings = track.getSettings ? track.getSettings() : {};
+      currentDeviceId = settings.deviceId || currentDeviceId;
+
+    } catch (e) {
+      // facingMode not honored -> fallback to cycling deviceId
+      await refreshDevices();
+      if (videoDevices.length) {
+        // heuristic: pick first for "environment", last for "user" if labels are available
+        const back = videoDevices.find(d => /back|rear|environment/i.test(d.label));
+        const front = videoDevices.find(d => /front|user/i.test(d.label));
+        const pick = (facing === 'user') ? (front || videoDevices[0]) : (back || videoDevices[videoDevices.length-1]);
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { deviceId: pick.deviceId, width:{ideal:1920}, height:{ideal:1080} },
+          audio: false
+        });
+        vid.srcObject = stream; await vid.play();
+        currentDeviceId = pick.deviceId;
+      }
+    }
+
+    // mirror preview for selfie cam
+    vid.style.transform = (facing === 'user') ? 'scaleX(-1)' : 'none';
+    // keep contrast effect applied on restart
+    vid.style.filter = `contrast(${contrastFactor})`;
+  }
+
   await startCamera();
-  document.getElementById('flip').onclick = async ()=>{
-    facing = (facing==='user' ? 'environment' : 'user');
+
+  document.getElementById('flip').onclick = async () => {
+    // toggle logical facing
+    facing = (facing === 'user' ? 'environment' : 'user');
     await startCamera();
   };
 
-  const proc=document.createElement('canvas');
-  const pctx=proc.getContext('2d',{willReadFrequently:true});
-  const renderer=new THREE.WebGLRenderer({canvas:glow,alpha:true});
-  const scene=new THREE.Scene();
-  const camera=new THREE.OrthographicCamera(0,innerWidth,innerHeight,0,-10,10);
+  // --- RENDER / DETECTION SETUP ---
+  const proc = document.createElement('canvas');
+  const pctx = proc.getContext('2d',{willReadFrequently:true});
+  const renderer = new THREE.WebGLRenderer({canvas:glow,alpha:true});
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(0,innerWidth,innerHeight,0,-10,10);
 
   const recCanvas = document.createElement('canvas');
   const recCtx    = recCanvas.getContext('2d');
@@ -186,9 +270,10 @@
   const smooth=Array.from({length:MAX},()=>({x:0,y:0,ok:false}));
   const ema=0.94; let bg=null;
 
+  // FIXED: cover draw typo (tAsp calculation)
   function coverDrawVideo(ctx, targetW, targetH, mirror=false){
     const vW=vid.videoWidth, vH=vid.videoHeight; if(!vW||!vH) return;
-    const vAsp=vW/vH, tAsp=targetW/tAsp;
+    const vAsp = vW / vH, tAsp = targetW / targetH;   // <-- fixed
     let drawW, drawH;
     if (tAsp>vAsp){ drawW=targetW; drawH=targetW/vAsp; } else { drawH=targetH; drawW=targetH*vAsp; }
     const offX=(targetW-drawW)/2, offY=(targetH-drawH)/2;
@@ -335,20 +420,39 @@
   recBtn.onclick = ()=> isRecording ? stopRecording() : startRecording();
 
   const texSize = 224;
+
+  // Linear contrast adjust helper for detection (affects pctx pixels)
+  function applyContrast(v /*0..255*/, c /*0.5..2.0*/) {
+    // center at 128, scale, clamp
+    let out = 128 + (v - 128) * c;
+    if (out < 0) out = 0; else if (out > 255) out = 255;
+    return out;
+  }
+
   async function tick(){
     if(vid.readyState>=2){
+      // draw into processing canvas (square crop)
       const s=Math.min(vid.videoWidth,vid.videoHeight);
       pctx.drawImage(vid,(vid.videoWidth-s)/2,(vid.videoHeight-s)/2,s,s,0,0,texSize,texSize);
       const frame=pctx.getImageData(0,0,texSize,texSize).data;
       if(!bg) bg=new Uint8ClampedArray(texSize*texSize);
       const gray=new Uint8ClampedArray(texSize*texSize);
-      for(let i=0,j=0;i<frame.length;i+=4,j++){ gray[j]=(frame[i]+frame[i+1]+frame[i+2])/3; }
+
+      // compute grayscale then apply contrast factor for detection pipeline
+      const cfac = contrastFactor; // 0.5..2.0
+      for(let i=0,j=0;i<frame.length;i+=4,j++){
+        const g = (frame[i]+frame[i+1]+frame[i+2])/3;
+        gray[j] = applyContrast(g, cfac);
+      }
+
+      // EMA background
       for(let j=0;j<gray.length;j++) bg[j]=bg[j]*ema + gray[j]*(1-ema);
 
       const brightThr=+thr.value, motThr=+mot.value;
 
       const motion=new Uint8ClampedArray(gray.length);
       for(let j=0;j<gray.length;j++){ const d=Math.abs(gray[j]-bg[j]); motion[j]=d>motThr?255:0; }
+
       const mask=new Uint8ClampedArray(gray.length);
       for(let j=0;j<gray.length;j++){ mask[j]=(gray[j]*3>brightThr && motion[j])?1:0; }
 
@@ -398,14 +502,12 @@
       if (isRecording){
           recCtx.clearRect(0, 0, recCanvas.width, recCanvas.height);
           if (windowsCheckbox.checked) {
-              // Create a clean frame for the recorder from scratch
               recCtx.fillStyle = 'rgba(0,0,0,0.85)';
               recCtx.fillRect(0, 0, recCanvas.width, recCanvas.height);
               drawLines(recCtx, visible);
               drawWindows(recCtx, visible);
               drawNumbers(recCtx, visible);
           } else {
-              // Standard recording works fine by compositing layers
               coverDrawVideo(recCtx, recCanvas.width, recCanvas.height, facing === 'user');
               recCtx.drawImage(glow, 0, 0);
               recCtx.drawImage(hud, 0, 0);
@@ -419,3 +521,5 @@
 </script>
 </body>
 </html>
+
+
