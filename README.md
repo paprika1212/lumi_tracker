@@ -14,19 +14,19 @@
 **LumiTracker** turns your camera feed into a living, breathing mesh of **glowing lines, numbers, and motion-reactive visuals** — all in your browser.  
 It’s built for creators who want that *music-video-like light tracking aesthetic* without opening heavy tools like **Adobe After Effects** or **TouchDesigner**.
 
-🪄 Just open the link → grant camera access → move lights around → and watch visuals come alive.
+🪄 Just open the link : [**LumiTracker**](https://paprika1212.github.io/lumi_tracker/)  → grant camera access → move lights around → and watch visuals come alive.
 
 ---
 
 ## 🎥 Features
 
-- 🕹️ **Real-time Controls** — tweak parameters like brightness, motion, contrast, and more  
-- 💡 **Contrast Boost** — helps capture LED or low-light visuals better  
-- 🌈 **Custom Colors** — select glow and text colors to match your vibe  
-- 🔳 **Blocks / Windows Modes** — geometric visual overlays or pixel “windows”  
-- 🔗 **Lines + Link Density** — control the number and reach of glowing connections  
-- 🔴 **Record** — save your visuals as `.webm` videos directly from your browser  
-- ⚡ **No Installations** — everything runs locally in the browser, GPU-accelerated  
+-  **Real-time Controls** — tweak parameters like brightness, motion, contrast, and more  
+-  **Contrast Boost** — helps capture LED or low-light visuals better  
+-  **Custom Colors** — select glow and text colors to match your vibe  
+-  **Blocks / Windows Modes** — geometric visual overlays or pixel “windows”  
+-  **Lines + Link Density** — control the number and reach of glowing connections  
+-  **Record** — save your visuals as `.webm` videos directly from your browser  
+-  **No Installations** — everything runs locally in the browser, GPU-accelerated  
 
 ---
 
