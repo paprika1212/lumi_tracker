@@ -4,45 +4,89 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Light Mesh — Numbers + Lines + Record</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
 <style>
   :root { color-scheme: dark; }
-  html,body { margin:0; height:100%; background:#000; overflow:hidden; }
+  html,body { margin:0; height:100%; background:#000; overflow:hidden; font-family: "Inter", sans-serif; }
   #wrap { position:relative; width:100vw; height:100vh; touch-action:none; }
-  /* NOTE: no transform here; we control mirroring in JS per camera */
   video#cam { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
   canvas#hud, canvas#glow { position:absolute; inset:0; pointer-events:none; }
+  
+  #top-ui {
+    position:absolute; top:12px; right:12px; z-index:4;
+    display:flex; gap:8px; align-items:center;
+  }
+
   .ui {
-    position:absolute; left:0; right:0; bottom:0; padding:10px 12px 16px;
+    position:absolute; left:0; right:0; bottom:0; padding:10px 12px;
     background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.6) 30%, rgba(0,0,0,.9) 100%);
-    display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:space-between;
-    font:12px ui-monospace, SFMono-Regular, Menlo, monospace; color:#9fe1ff; z-index:3;
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+    color:#9fe1ff; z-index:3;
   }
-  .ui label { display:flex; align-items:center; gap:8px; }
-  .ui input[type=range] { width:24vw; max-width:190px; }
+  #sliderPanel {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px 24px;
+    justify-items: start;
+    padding: 0 10%;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height .4s ease-out, padding .4s ease-out;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .ui.open #sliderPanel {
+    max-height: 260px; /* Increased height for new row */
+    padding-top: 10px;
+  }
+
+  .ui label { display:flex; align-items:center; gap:8px; font-size:12px; white-space:nowrap; }
+  .ui input[type=range] { width:22vw; max-width:180px; }
   .btn {
-    border:1px solid #2aa9d9; padding:6px 10px; border-radius:10px; color:#c9f3ff; background:#02212b;
+    background: transparent; border: 1px solid #2aa9d9; padding: 8px 12px;
+    border-radius: 10px; color: #c9f3ff; cursor: pointer; font-size: 12px;
+    font-weight: 600; transition: all 0.3s ease;
   }
-  .btn.rec { border-color:#ff5555; background:#2a0000; }
+  .btn:hover { background: #2aa9d9; color: #001f29; }
+  .btn.rec { border-color:#ff5555; }
+  .btn.rec:hover { background: #ff5555; color: #2a0000; }
   .btn[disabled] { opacity:.5 }
+  select.color-selector {
+    background:#02212b; color:#c9f3ff; border:1px solid #2aa9d9;
+    padding:6px; border-radius:8px;
+  }
 </style>
 </head>
 <body>
+
+<div id="top-ui">
+  <button class="btn" id="flip">Flip Cam</button>
+  <button class="btn rec" id="recBtn">● Record</button>
+</div>
+
 <div id="wrap">
   <video id="cam" autoplay playsinline muted></video>
   <canvas id="glow"></canvas>
   <canvas id="hud"></canvas>
 
   <div class="ui">
-    <label>T:<input id="thr" type="range" min="100" max="750" value="560" step="5"></label>
-    <label>M:<input id="mot" type="range" min="0" max="255" value="30" step="1"></label>
-    <label>N pts:<input id="pts" type="range" min="4" max="40" value="16" step="1"></label>
-    <label>Size:<input id="siz" type="range" min="12" max="48" value="20" step="1"></label>
-    <label>L lines:<input id="lines" type="range" min="0" max="200" value="80" step="1"></label>
-    <label>D link(px):<input id="link" type="range" min="10" max="300" value="180" step="5"></label>
-    <div style="display:flex; gap:8px;">
-      <button class="btn" id="flip">Flip Cam</button>
-      <button class="btn rec" id="recBtn">● Record</button>
+    <div id="sliderPanel">
+      <label>Text:<select id="textColorSel" class="color-selector"></select></label>
+      <label>Line:<select id="lineColorSel" class="color-selector"></select></label>
+      <label>Brightness:<input id="thr" type="range" min="100" max="700" value="250" step="5"></label>
+      <label>Motion:<input id="mot" type="range" min="0" max="60" value="30" step="1"></label>
+      <label>No. of pts:<input id="pts" type="range" min="4" max="40" value="16" step="1"></label>
+      <label>Size:<input id="siz" type="range" min="0" max="24" value="10" step="1"></label>
+      <label>No. of lines:<input id="lines" type="range" min="0" max="200" value="80" step="1"></label>
+      <label>Link density:<input id="link" type="range" min="10" max="300" value="180" step="5"></label>
+      <label>Blocks:<input id="blocks" type="checkbox"></label>
+      <label>Windows:<input id="windows" type="checkbox"></label>
+      <label>Block Size:<input id="blkSize" type="range" min="10" max="80" value="20" step="1"></label>
+      <label>Win Size:<input id="winSize" type="range" min="10" max="80" value="20" step="1"></label>
     </div>
+    <button class="btn" id="controlsToggle">Controls</button>
   </div>
 </div>
 
@@ -55,36 +99,48 @@
   const glow = document.getElementById('glow');
   const ctx  = hud.getContext('2d');
 
-  // sliders
+  // sliders and controls
   const thr = document.getElementById('thr');
   const mot = document.getElementById('mot');
   const ptsSlider   = document.getElementById('pts');
   const sizSlider   = document.getElementById('siz');
   const linesSlider = document.getElementById('lines');
   const linkSlider  = document.getElementById('link');
+  const blocksCheckbox = document.getElementById('blocks');
+  const windowsCheckbox = document.getElementById('windows');
+  const blkSizeSlider = document.getElementById('blkSize');
+  const winSizeSlider = document.getElementById('winSize');
 
-  // color selector (top-right)
+  blocksCheckbox.onchange = () => { if (blocksCheckbox.checked) windowsCheckbox.checked = false; };
+  windowsCheckbox.onchange = () => { if (windowsCheckbox.checked) blocksCheckbox.checked = false; };
+
+  const uiContainer = document.querySelector('.ui');
+  const controlsToggle = document.getElementById('controlsToggle');
+  controlsToggle.onclick = () => {
+    uiContainer.classList.toggle('open');
+    controlsToggle.textContent = uiContainer.classList.contains('open') ? 'Close' : 'Controls';
+  };
+
+  const textColorSel = document.getElementById('textColorSel');
+  const lineColorSel = document.getElementById('lineColorSel');
   const colorOptions = ['white','cyan','magenta','lime','red','yellow'];
-  let hudColor = 'white';
-  const colorSel = document.createElement('select');
-  Object.assign(colorSel.style,{
-    position:'absolute',top:'12px',right:'12px',zIndex:4,
-    background:'#000',color:'#fff',border:'1px solid #888',
-    padding:'6px',borderRadius:'8px',font:'12px ui-monospace'
-  });
-  colorOptions.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;colorSel.appendChild(o);});
-  document.body.appendChild(colorSel);
-  colorSel.oninput=()=>hudColor=colorSel.value;
+  let textColor = 'white';
+  let lineColor = 'white';
 
-  // camera
-  let facing='environment'; // start with back cam (not mirrored)
+  function setupColorSelector(selectEl, callback) {
+    colorOptions.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;selectEl.appendChild(o);});
+    selectEl.oninput = () => callback(selectEl.value);
+  }
+  setupColorSelector(textColorSel, (c) => textColor = c);
+  setupColorSelector(lineColorSel, (c) => lineColor = c);
+  
+  let facing='environment';
   async function startCamera(){
     if(vid.srcObject) vid.srcObject.getTracks().forEach(t=>t.stop());
     const stream=await navigator.mediaDevices.getUserMedia({
       video:{ facingMode: facing, width:{ideal:1920}, height:{ideal:1080} }, audio:false
     });
     vid.srcObject=stream; await vid.play();
-    // IMPORTANT: mirror only when using the front cam
     vid.style.transform = (facing==='user') ? 'scaleX(-1)' : 'none';
   }
   await startCamera();
@@ -93,14 +149,12 @@
     await startCamera();
   };
 
-  // setup
   const proc=document.createElement('canvas');
   const pctx=proc.getContext('2d',{willReadFrequently:true});
   const renderer=new THREE.WebGLRenderer({canvas:glow,alpha:true});
   const scene=new THREE.Scene();
   const camera=new THREE.OrthographicCamera(0,innerWidth,innerHeight,0,-10,10);
 
-  // hidden compositor for recording
   const recCanvas = document.createElement('canvas');
   const recCtx    = recCanvas.getContext('2d');
   const recBtn    = document.getElementById('recBtn');
@@ -116,7 +170,6 @@
   }
   resize(); window.onresize=resize;
 
-  // glow sprites
   const texCanvas=document.createElement('canvas'); texCanvas.width=texCanvas.height=64;
   const g=texCanvas.getContext('2d');
   const grad=g.createRadialGradient(32,32,1,32,32,28);
@@ -131,10 +184,9 @@
   const smooth=Array.from({length:MAX},()=>({x:0,y:0,ok:false}));
   const ema=0.94; let bg=null;
 
-  // draw <video> “cover” into any context, with optional mirror
   function coverDrawVideo(ctx, targetW, targetH, mirror=false){
     const vW=vid.videoWidth, vH=vid.videoHeight; if(!vW||!vH) return;
-    const vAsp=vW/vH, tAsp=targetW/targetH;
+    const vAsp=vW/vH, tAsp=targetW/tAsp;
     let drawW, drawH;
     if (tAsp>vAsp){ drawW=targetW; drawH=targetW/vAsp; } else { drawH=targetH; drawW=targetH*vAsp; }
     const offX=(targetW-drawW)/2, offY=(targetH-drawH)/2;
@@ -151,42 +203,89 @@
     if(vwAsp>vAsp){drawW=w;drawH=w/vAsp;} else {drawH=h;drawW=h*vAsp;}
     const offX=(w-drawW)/2, offY=(h-drawH)/2;
     const nx=px/proc.width, ny=py/proc.height;
-    const mirror=(facing==='user')?(1-nx):nx; // only mirror with front cam
+    const mirror=(facing==='user')?(1-nx):nx;
     return {x:offX+drawW*mirror, y:offY+drawH*ny};
   }
 
-  // HUD: numbers + lines
+  const detectionBlockSize = 8;
+
   function drawHUD(points){
-    const w=hud.width,h=hud.height;
+    const w = hud.width, h = hud.height;
     ctx.clearRect(0,0,w,h);
 
-    // lines (under labels)
+    // --- RENDER MODES ---
+    if (windowsCheckbox.checked) {
+        // In Windows mode, draw the dark background overlay FIRST.
+        ctx.fillStyle = 'rgba(0,0,0,0.85)';
+        ctx.fillRect(0, 0, w, h);
+    }
+
+    // Now, draw the connecting lines. They will be on top of the dark overlay.
     ctx.save();
-    ctx.strokeStyle=hudColor; ctx.globalAlpha=0.55; ctx.lineWidth=0.6;
+    ctx.strokeStyle = lineColor;
+    ctx.globalAlpha=0.55; ctx.lineWidth=0.6;
     const n=points.length, maxLines=+linesSlider.value, maxDist=+linkSlider.value;
     for(let k=0;k<maxLines && n>1;k++){
-      const i=(Math.random()*n)|0, j=(Math.random()*n)|0;
-      if(i===j) continue;
-      const ax=points[i].sx, ay=points[i].sy, bx=points[j].sx, by=points[j].sy;
-      const dx=ax-bx, dy=ay-by;
-      if (dx*dx+dy*dy > maxDist*maxDist) continue;
-      ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
+        const i=(Math.random()*n)|0, j=(Math.random()*n)|0;
+        if(i===j) continue;
+        const ax=points[i].sx, ay=points[i].sy, bx=points[j].sx, by=points[j].sy;
+        const dx=ax-bx, dy=ay-by;
+        if (dx*dx+dy*dy > maxDist*maxDist) continue;
+        ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
     }
     ctx.restore();
 
-    // numbers on top
-    ctx.fillStyle=hudColor; ctx.font='10px ui-monospace';
-    for(const p of points){
-      const text=p.code, tw=ctx.measureText(text).width;
-      ctx.save(); ctx.shadowColor='rgba(0,0,0,0.6)'; ctx.shadowBlur=4;
-      ctx.fillText(text, p.sx - tw/2, p.sy + 3.5);
-      ctx.restore();
+    // Continue drawing the specific visuals for each mode
+    if (windowsCheckbox.checked) {
+        const vW=vid.videoWidth, vH=vid.videoHeight;
+        const vAsp=vW/vH, tAsp=w/h;
+        let drawW, drawH;
+        if (tAsp>vAsp){ drawW=w; drawH=w/vAsp; } else { drawH=h; drawW=h*vAsp; }
+        const offX=(w-drawW)/2, offY=(h-drawH)/2;
+        const ratioX = vW / drawW, ratioY = vH / drawH;
+        const winSize = parseFloat(winSizeSlider.value);
+
+        for (const p of points) {
+            const destX = p.sx - winSize / 2, destY = p.sy - winSize / 2;
+            const sourceSizeX = winSize * ratioX, sourceSizeY = winSize * ratioY;
+            const sourceX = (p.sx - offX) * ratioX - sourceSizeX / 2;
+            const sourceY = (p.sy - offY) * ratioY - sourceSizeY / 2;
+            ctx.drawImage(vid, sourceX, sourceY, sourceSizeX, sourceSizeY, destX, destY, winSize, winSize);
+        }
+    } else if (blocksCheckbox.checked) {
+        ctx.strokeStyle = lineColor;
+        ctx.lineWidth = 0.8;
+        const blkSize = parseFloat(blkSizeSlider.value);
+
+        for (const p of points) {
+            const x = p.sx - blkSize / 2, y = p.sy - blkSize / 2;
+            ctx.strokeRect(x, y, blkSize, blkSize);
+            ctx.beginPath();
+            ctx.moveTo(x, y); ctx.lineTo(x + blkSize, y + blkSize);
+            ctx.moveTo(x + blkSize, y); ctx.lineTo(x, y + blkSize);
+            ctx.stroke();
+        }
     }
-  }
+
+    // Finally, draw the numbers on top of everything (except in blocks mode)
+    if (!blocksCheckbox.checked) {
+        const fontSize = parseFloat(sizSlider.value);
+        if (fontSize <= 0) return;
+        ctx.fillStyle = textColor;
+        ctx.font = `${fontSize}px ui-monospace, monospace`;
+        for(const p of points){
+          const text=p.code, tw=ctx.measureText(text).width;
+          ctx.save();
+          ctx.shadowColor='rgba(0,0,0,0.8)';
+          ctx.shadowBlur=5;
+          ctx.fillText(text, p.sx - tw/2, p.sy + (fontSize / 2.5));
+          ctx.restore();
+        }
+    }
+}
 
   function randCode(){return (1000+Math.floor(Math.random()*9000)).toString();}
 
-  // recording
   function startRecording(){
     recordedBlobs=[];
     const stream = recCanvas.captureStream(30);
@@ -194,12 +293,10 @@
       ? (MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9'
          : (MediaRecorder.isTypeSupported('video/webm;codecs=vp8') ? 'video/webm;codecs=vp8' : 'video/webm'))
       : null;
-
     if (!window.MediaRecorder || !mime){
       alert('Recording not supported on this browser. Use Android/Chrome or use system screen recording.');
       return;
     }
-
     mediaRecorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 5_000_000 });
     mediaRecorder.ondataavailable = e => { if (e.data && e.data.size) recordedBlobs.push(e.data); };
     mediaRecorder.onstop = ()=>{
@@ -216,13 +313,11 @@
     if(mediaRecorder && isRecording) mediaRecorder.stop();
     isRecording=false; recBtn.textContent='● Record';
   }
-  document.getElementById('recBtn').onclick = ()=> isRecording ? stopRecording() : startRecording();
+  recBtn.onclick = ()=> isRecording ? stopRecording() : startRecording();
 
-  // main loop
-  const texSize = 224; // processing resolution
+  const texSize = 224;
   async function tick(){
     if(vid.readyState>=2){
-      // 1) tracking at low-res
       const s=Math.min(vid.videoWidth,vid.videoHeight);
       pctx.drawImage(vid,(vid.videoWidth-s)/2,(vid.videoHeight-s)/2,s,s,0,0,texSize,texSize);
       const frame=pctx.getImageData(0,0,texSize,texSize).data;
@@ -239,7 +334,7 @@
       for(let j=0;j<gray.length;j++){ mask[j]=(gray[j]*3>brightThr && motion[j])?1:0; }
 
       const want=Math.min(+ptsSlider.value,MAX);
-      const bs=8; const picks=[];
+      const bs=detectionBlockSize; const picks=[];
       for(let by=0;by<texSize;by+=bs){
         for(let bx=0;bx<texSize;bx+=bs){
           let best=-1,bxBest=0,byBest=0;
@@ -249,13 +344,12 @@
               const v=gray[j]; if(v>best){best=v;bxBest=x;byBest=y;}
             }
           }
-          if(best>=0)picks.push({x:bxBest,y:byBest,v:best});
+          if(best>=0)picks.push({x:bxBest,y:byBest,v:best,bx:bx,by:by});
         }
       }
       picks.sort((a,b)=>b.v-a.v);
       const pts=picks.slice(0,want);
 
-      // 2) smooth + glow
       const alpha=0.3;
       for(let i=0;i<MAX;i++){
         const p=pts[i];
@@ -264,27 +358,40 @@
           if(!smooth[i].ok){smooth[i].x=m.x; smooth[i].y=m.y; smooth[i].ok=true; smooth[i].code=randCode();}
           smooth[i].x=smooth[i].x*(1-alpha)+m.x*alpha;
           smooth[i].y=smooth[i].y*(1-alpha)+m.y*alpha;
+          smooth[i].bx=p.bx; smooth[i].by=p.by;
+          smooth[i].origX = p.x; smooth[i].origY = p.y;
           sprites[i].position.set(smooth[i].x,smooth[i].y,0);
           sprites[i].material.opacity=1;
           const size=parseFloat(sizSlider.value);
-          sprites[i].scale.set(size,size,1);
+          sprites[i].scale.set(size*1.5, size*1.5, 1);
           if(Math.random()<0.02) smooth[i].code=randCode();
         } else {
           smooth[i].ok=false; sprites[i].material.opacity=0; sprites[i].position.set(-9999,-9999,0);
         }
       }
 
-      // 3) render + HUD
       renderer.render(scene,camera);
-      const visible=smooth.filter(s=>s.ok).map(s=>({sx:s.x,sy:s.y,code:s.code}));
-      drawHUD(visible);
+      const visible=smooth.filter(s=>s.ok).map(s=>({sx:s.x,sy:s.y,code:s.code,bx:s.bx,by:s.by, x:s.origX, y:s.origY}));
+      
+      if (windowsCheckbox.checked) {
+        glow.style.display = 'none';
+        hud.style.background = 'transparent';
+        drawHUD(visible);
+      } else {
+        glow.style.display = 'block';
+        hud.style.background = 'transparent';
+        drawHUD(visible);
+      }
 
-      // 4) if recording, composite video + glow + HUD to recCanvas
       if (isRecording){
         recCtx.clearRect(0,0,recCanvas.width,recCanvas.height);
-        coverDrawVideo(recCtx, recCanvas.width, recCanvas.height, facing==='user'); // mirror only on front cam
-        recCtx.drawImage(glow, 0, 0);
-        recCtx.drawImage(hud,  0, 0);
+        if (windowsCheckbox.checked) {
+            recCtx.drawImage(hud, 0, 0);
+        } else {
+            coverDrawVideo(recCtx, recCanvas.width, recCanvas.height, facing==='user');
+            recCtx.drawImage(glow, 0, 0);
+            recCtx.drawImage(hud,  0, 0);
+        }
       }
     }
     requestAnimationFrame(tick);
@@ -294,4 +401,3 @@
 </script>
 </body>
 </html>
-
