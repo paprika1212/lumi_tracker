@@ -10,7 +10,7 @@
 <style>
   :root { color-scheme: dark; }
   html,body { margin:0; height:100%; background:#000; overflow:hidden; font-family: "Inter", sans-serif; }
-  #wrap { position:relative; width:100vw; height:100vh; touch-action:none; }
+  #wrap { position:relative; width:100vw; height:100dvh; touch-action:none; }
   video#cam { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
   canvas#hud, canvas#glow { position:absolute; inset:0; pointer-events:none; }
   
@@ -38,9 +38,11 @@
     box-sizing: border-box;
   }
   .ui.open #sliderPanel {
-    max-height: 260px; /* Increased height for new row */
-    padding-top: 10px;
-  }
+  max-height: 40dvh; /* Set max height to 40% of the visible screen */
+  overflow-y: auto;  /* Add a scrollbar if the content is too tall */
+  padding-top: 10px;
+  padding-bottom: 10px; /* Add some space at the bottom for scrolling */
+}
 
   .ui label { display:flex; align-items:center; gap:8px; font-size:12px; white-space:nowrap; }
   .ui input[type=range] { width:22vw; max-width:180px; }
