@@ -210,81 +210,98 @@
   }
 
   const detectionBlockSize = 8;
+  
+  // --- Reusable Drawing Functions ---
+  function drawLines(targetCtx, points) {
+      targetCtx.save();
+      targetCtx.strokeStyle = lineColor;
+      targetCtx.globalAlpha = 0.55;
+      targetCtx.lineWidth = 0.6;
+      const n = points.length, maxLines = +linesSlider.value, maxDist = +linkSlider.value;
+      for (let k = 0; k < maxLines && n > 1; k++) {
+          const i = (Math.random() * n) | 0, j = (Math.random() * n) | 0;
+          if (i === j) continue;
+          const ax = points[i].sx, ay = points[i].sy, bx = points[j].sx, by = points[j].sy;
+          const dx = ax - bx, dy = ay - by;
+          if (dx * dx + dy * dy > maxDist * maxDist) continue;
+          targetCtx.beginPath();
+          targetCtx.moveTo(ax, ay);
+          targetCtx.lineTo(bx, by);
+          targetCtx.stroke();
+      }
+      targetCtx.restore();
+  }
+  
+  function drawWindows(targetCtx, points) {
+      const w = targetCtx.canvas.width, h = targetCtx.canvas.height;
+      const vW = vid.videoWidth, vH = vid.videoHeight;
+      const vAsp = vW / vH, tAsp = w / h;
+      let drawW, drawH;
+      if (tAsp > vAsp) { drawW = w; drawH = w / vAsp; } else { drawH = h; drawW = h * vAsp; }
+      const offX = (w - drawW) / 2, offY = (h - drawH) / 2;
+      const ratioX = vW / drawW, ratioY = vH / drawH;
+      const winSize = parseFloat(winSizeSlider.value);
 
-  function drawHUD(points){
-    const w = hud.width, h = hud.height;
+      for (const p of points) {
+          const destX = p.sx - winSize / 2, destY = p.sy - winSize / 2;
+          const sourceSizeX = winSize * ratioX, sourceSizeY = winSize * ratioY;
+          const sourceX = (p.sx - offX) * ratioX - sourceSizeX / 2;
+          const sourceY = (p.sy - offY) * ratioY - sourceSizeY / 2;
+          targetCtx.drawImage(vid, sourceX, sourceY, sourceSizeX, sourceSizeY, destX, destY, winSize, winSize);
+      }
+  }
+
+  function drawBlocks(targetCtx, points) {
+      targetCtx.strokeStyle = lineColor;
+      targetCtx.lineWidth = 0.8;
+      const blkSize = parseFloat(blkSizeSlider.value);
+      for (const p of points) {
+          const x = p.sx - blkSize / 2, y = p.sy - blkSize / 2;
+          targetCtx.strokeRect(x, y, blkSize, blkSize);
+          targetCtx.beginPath();
+          targetCtx.moveTo(x, y); targetCtx.lineTo(x + blkSize, y + blkSize);
+          targetCtx.moveTo(x + blkSize, y); targetCtx.lineTo(x, y + blkSize);
+          targetCtx.stroke();
+      }
+  }
+
+  function drawNumbers(targetCtx, points) {
+      const fontSize = parseFloat(sizSlider.value);
+      if (fontSize <= 0) return;
+      targetCtx.fillStyle = textColor;
+      targetCtx.font = `${fontSize}px ui-monospace, monospace`;
+      for (const p of points) {
+          const text = p.code, tw = targetCtx.measureText(text).width;
+          targetCtx.save();
+          targetCtx.shadowColor = 'rgba(0,0,0,0.8)';
+          targetCtx.shadowBlur = 5;
+          targetCtx.fillText(text, p.sx - tw / 2, p.sy + (fontSize / 2.5));
+          targetCtx.restore();
+      }
+  }
+  
+  // Main HUD drawing function for display
+  function drawHUD(points) {
+    const w=hud.width,h=hud.height;
     ctx.clearRect(0,0,w,h);
 
-    // --- RENDER MODES ---
     if (windowsCheckbox.checked) {
-        // In Windows mode, draw the dark background overlay FIRST.
         ctx.fillStyle = 'rgba(0,0,0,0.85)';
         ctx.fillRect(0, 0, w, h);
     }
+    
+    drawLines(ctx, points);
 
-    // Now, draw the connecting lines. They will be on top of the dark overlay.
-    ctx.save();
-    ctx.strokeStyle = lineColor;
-    ctx.globalAlpha=0.55; ctx.lineWidth=0.6;
-    const n=points.length, maxLines=+linesSlider.value, maxDist=+linkSlider.value;
-    for(let k=0;k<maxLines && n>1;k++){
-        const i=(Math.random()*n)|0, j=(Math.random()*n)|0;
-        if(i===j) continue;
-        const ax=points[i].sx, ay=points[i].sy, bx=points[j].sx, by=points[j].sy;
-        const dx=ax-bx, dy=ay-by;
-        if (dx*dx+dy*dy > maxDist*maxDist) continue;
-        ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
-    }
-    ctx.restore();
-
-    // Continue drawing the specific visuals for each mode
     if (windowsCheckbox.checked) {
-        const vW=vid.videoWidth, vH=vid.videoHeight;
-        const vAsp=vW/vH, tAsp=w/h;
-        let drawW, drawH;
-        if (tAsp>vAsp){ drawW=w; drawH=w/vAsp; } else { drawH=h; drawW=h*vAsp; }
-        const offX=(w-drawW)/2, offY=(h-drawH)/2;
-        const ratioX = vW / drawW, ratioY = vH / drawH;
-        const winSize = parseFloat(winSizeSlider.value);
-
-        for (const p of points) {
-            const destX = p.sx - winSize / 2, destY = p.sy - winSize / 2;
-            const sourceSizeX = winSize * ratioX, sourceSizeY = winSize * ratioY;
-            const sourceX = (p.sx - offX) * ratioX - sourceSizeX / 2;
-            const sourceY = (p.sy - offY) * ratioY - sourceSizeY / 2;
-            ctx.drawImage(vid, sourceX, sourceY, sourceSizeX, sourceSizeY, destX, destY, winSize, winSize);
-        }
+        drawWindows(ctx, points);
     } else if (blocksCheckbox.checked) {
-        ctx.strokeStyle = lineColor;
-        ctx.lineWidth = 0.8;
-        const blkSize = parseFloat(blkSizeSlider.value);
-
-        for (const p of points) {
-            const x = p.sx - blkSize / 2, y = p.sy - blkSize / 2;
-            ctx.strokeRect(x, y, blkSize, blkSize);
-            ctx.beginPath();
-            ctx.moveTo(x, y); ctx.lineTo(x + blkSize, y + blkSize);
-            ctx.moveTo(x + blkSize, y); ctx.lineTo(x, y + blkSize);
-            ctx.stroke();
-        }
+        drawBlocks(ctx, points);
     }
 
-    // Finally, draw the numbers on top of everything (except in blocks mode)
     if (!blocksCheckbox.checked) {
-        const fontSize = parseFloat(sizSlider.value);
-        if (fontSize <= 0) return;
-        ctx.fillStyle = textColor;
-        ctx.font = `${fontSize}px ui-monospace, monospace`;
-        for(const p of points){
-          const text=p.code, tw=ctx.measureText(text).width;
-          ctx.save();
-          ctx.shadowColor='rgba(0,0,0,0.8)';
-          ctx.shadowBlur=5;
-          ctx.fillText(text, p.sx - tw/2, p.sy + (fontSize / 2.5));
-          ctx.restore();
-        }
+        drawNumbers(ctx, points);
     }
-}
+  }
 
   function randCode(){return (1000+Math.floor(Math.random()*9000)).toString();}
 
@@ -375,25 +392,24 @@
       renderer.render(scene,camera);
       const visible=smooth.filter(s=>s.ok).map(s=>({sx:s.x,sy:s.y,code:s.code,bx:s.bx,by:s.by, x:s.origX, y:s.origY}));
       
-      if (windowsCheckbox.checked) {
-        glow.style.display = 'none';
-        hud.style.background = 'transparent';
-        drawHUD(visible);
-      } else {
-        glow.style.display = 'block';
-        hud.style.background = 'transparent';
-        drawHUD(visible);
-      }
+      glow.style.display = windowsCheckbox.checked ? 'none' : 'block';
+      drawHUD(visible);
 
       if (isRecording){
-        recCtx.clearRect(0,0,recCanvas.width,recCanvas.height);
-        if (windowsCheckbox.checked) {
-            recCtx.drawImage(hud, 0, 0);
-        } else {
-            coverDrawVideo(recCtx, recCanvas.width, recCanvas.height, facing==='user');
-            recCtx.drawImage(glow, 0, 0);
-            recCtx.drawImage(hud,  0, 0);
-        }
+          recCtx.clearRect(0, 0, recCanvas.width, recCanvas.height);
+          if (windowsCheckbox.checked) {
+              // Create a clean frame for the recorder from scratch
+              recCtx.fillStyle = 'rgba(0,0,0,0.85)';
+              recCtx.fillRect(0, 0, recCanvas.width, recCanvas.height);
+              drawLines(recCtx, visible);
+              drawWindows(recCtx, visible);
+              drawNumbers(recCtx, visible);
+          } else {
+              // Standard recording works fine by compositing layers
+              coverDrawVideo(recCtx, recCanvas.width, recCanvas.height, facing === 'user');
+              recCtx.drawImage(glow, 0, 0);
+              recCtx.drawImage(hud, 0, 0);
+          }
       }
     }
     requestAnimationFrame(tick);
