@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>Real-time Light + Motion Visualizer — No After Effects. No TouchDesigner. Just Your Browser.</strong><br>
-  <a href="[https://github.com/paprika1212/lumi_tracker/tree/main](https://paprika1212.github.io/lumi_tracker/)">→ Try it now</a>
+  <a href="https://github.com/paprika1212/lumi_tracker/tree/main](https://paprika1212.github.io/lumi_tracker/">→ Try it now</a>
 </p>
 
 ---
