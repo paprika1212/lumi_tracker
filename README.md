@@ -1,10 +1,10 @@
 <h1 align="center">
-  🌈 <span style="background: linear-gradient(90deg, #00fff0, #ff00ff, #ffd700); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">LumiTracker</span>
+  <span style="background: linear-gradient(90deg, #00fff0, #ff00ff, #ffd700); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">LumiTracker</span>
 </h1>
 
 <p align="center">
   <strong>Real-time Light + Motion Visualizer — No After Effects. No TouchDesigner. Just Your Browser.</strong><br>
-  <a href="https://github.com/paprika1212/lumi_tracker/tree/main">→ Try it now</a>
+  <a href="[https://github.com/paprika1212/lumi_tracker/tree/main](https://paprika1212.github.io/lumi_tracker/)">→ Try it now</a>
 </p>
 
 ---
