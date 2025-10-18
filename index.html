@@ -3,12 +3,13 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Fireworks Light Tracker — Numbers + Lines + Record</title>
+<title>Light Mesh — Numbers + Lines + Record</title>
 <style>
   :root { color-scheme: dark; }
   html,body { margin:0; height:100%; background:#000; overflow:hidden; }
   #wrap { position:relative; width:100vw; height:100vh; touch-action:none; }
-  video#cam { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transform:scaleX(-1); }
+  /* NOTE: no transform here; we control mirroring in JS per camera */
+  video#cam { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
   canvas#hud, canvas#glow { position:absolute; inset:0; pointer-events:none; }
   .ui {
     position:absolute; left:0; right:0; bottom:0; padding:10px 12px 16px;
@@ -22,6 +23,7 @@
     border:1px solid #2aa9d9; padding:6px 10px; border-radius:10px; color:#c9f3ff; background:#02212b;
   }
   .btn.rec { border-color:#ff5555; background:#2a0000; }
+  .btn[disabled] { opacity:.5 }
 </style>
 </head>
 <body>
@@ -48,8 +50,8 @@
 
 <script>
 (async function () {
-  const vid = document.getElementById('cam');
-  const hud = document.getElementById('hud');
+  const vid  = document.getElementById('cam');
+  const hud  = document.getElementById('hud');
   const glow = document.getElementById('glow');
   const ctx  = hud.getContext('2d');
 
@@ -61,7 +63,7 @@
   const linesSlider = document.getElementById('lines');
   const linkSlider  = document.getElementById('link');
 
-  // ------- color selector (top-right) -------
+  // color selector (top-right)
   const colorOptions = ['white','cyan','magenta','lime','red','yellow'];
   let hudColor = 'white';
   const colorSel = document.createElement('select');
@@ -74,21 +76,24 @@
   document.body.appendChild(colorSel);
   colorSel.oninput=()=>hudColor=colorSel.value;
 
-  // ------- camera -------
-  let facing='environment';
+  // camera
+  let facing='environment'; // start with back cam (not mirrored)
   async function startCamera(){
     if(vid.srcObject) vid.srcObject.getTracks().forEach(t=>t.stop());
     const stream=await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:facing,width:{ideal:1920},height:{ideal:1080}},audio:false
+      video:{ facingMode: facing, width:{ideal:1920}, height:{ideal:1080} }, audio:false
     });
     vid.srcObject=stream; await vid.play();
+    // IMPORTANT: mirror only when using the front cam
+    vid.style.transform = (facing==='user') ? 'scaleX(-1)' : 'none';
   }
   await startCamera();
   document.getElementById('flip').onclick = async ()=>{
-    facing = (facing==='user'?'environment':'user'); await startCamera();
+    facing = (facing==='user' ? 'environment' : 'user');
+    await startCamera();
   };
 
-  // ------- setup -------
+  // setup
   const proc=document.createElement('canvas');
   const pctx=proc.getContext('2d',{willReadFrequently:true});
   const renderer=new THREE.WebGLRenderer({canvas:glow,alpha:true});
@@ -98,21 +103,20 @@
   // hidden compositor for recording
   const recCanvas = document.createElement('canvas');
   const recCtx    = recCanvas.getContext('2d');
-  let mediaRecorder = null, recordedBlobs = [], isRecording = false;
+  const recBtn    = document.getElementById('recBtn');
+  let mediaRecorder=null, recordedBlobs=[], isRecording=false;
 
   function resize(){
-    const w = innerWidth, h = innerHeight;
+    const w=innerWidth,h=innerHeight;
     glow.width=hud.width=w; glow.height=hud.height=h;
     proc.width=proc.height=224;
     renderer.setSize(w,h,false);
     camera.right=w; camera.bottom=h; camera.updateProjectionMatrix();
-
-    // recorder canvas matches screen
-    recCanvas.width = w; recCanvas.height = h;
+    recCanvas.width=w; recCanvas.height=h;
   }
   resize(); window.onresize=resize;
 
-  // ------- glow sprites -------
+  // glow sprites
   const texCanvas=document.createElement('canvas'); texCanvas.width=texCanvas.height=64;
   const g=texCanvas.getContext('2d');
   const grad=g.createRadialGradient(32,32,1,32,32,28);
@@ -127,68 +131,54 @@
   const smooth=Array.from({length:MAX},()=>({x:0,y:0,ok:false}));
   const ema=0.94; let bg=null;
 
-  // ------- mapping -------
+  // draw <video> “cover” into any context, with optional mirror
   function coverDrawVideo(ctx, targetW, targetH, mirror=false){
-    // Draw <video> with "object-fit: cover" and optional horizontal mirror
-    const vW = vid.videoWidth, vH = vid.videoHeight;
-    if (!vW || !vH) return;
-    const vAsp = vW/vH, tAsp = targetW/targetH;
+    const vW=vid.videoWidth, vH=vid.videoHeight; if(!vW||!vH) return;
+    const vAsp=vW/vH, tAsp=targetW/targetH;
     let drawW, drawH;
-    if (tAsp > vAsp) { drawW = targetW; drawH = targetW / vAsp; }
-    else             { drawH = targetH; drawW = targetH * vAsp; }
-    const offX = (targetW - drawW)/2, offY = (targetH - drawH)/2;
-
+    if (tAsp>vAsp){ drawW=targetW; drawH=targetW/vAsp; } else { drawH=targetH; drawW=targetH*vAsp; }
+    const offX=(targetW-drawW)/2, offY=(targetH-drawH)/2;
     ctx.save();
-    ctx.translate(offX + (mirror ? drawW : 0), offY);
-    ctx.scale(mirror ? -1 : 1, 1);
+    ctx.translate(offX + (mirror?drawW:0), offY);
+    ctx.scale(mirror?-1:1, 1);
     ctx.drawImage(vid, 0, 0, drawW, drawH);
     ctx.restore();
   }
 
   function mapToScreen(px,py){
     const w=hud.width,h=hud.height,vW=vid.videoWidth,vH=vid.videoHeight;
-    const vAsp=vW/vH,vwAsp=w/h;let drawW,drawH;
-    if(vwAsp>vAsp){drawW=w;drawH=w/vAsp;}else{drawH=h;drawW=h*vAsp;}
-    const offX=(w-drawW)/2,offY=(h-drawH)/2;
-    const nx=px/proc.width,ny=py/proc.height;
-    const mirror=(facing==='user')?(1-nx):nx;
-    return {x:offX+drawW*mirror,y:offY+drawH*ny};
+    const vAsp=vW/vH,vwAsp=w/h; let drawW,drawH;
+    if(vwAsp>vAsp){drawW=w;drawH=w/vAsp;} else {drawH=h;drawW=h*vAsp;}
+    const offX=(w-drawW)/2, offY=(h-drawH)/2;
+    const nx=px/proc.width, ny=py/proc.height;
+    const mirror=(facing==='user')?(1-nx):nx; // only mirror with front cam
+    return {x:offX+drawW*mirror, y:offY+drawH*ny};
   }
 
-  // ------- HUD (numbers + lines) -------
+  // HUD: numbers + lines
   function drawHUD(points){
     const w=hud.width,h=hud.height;
     ctx.clearRect(0,0,w,h);
 
-    // lines under labels
+    // lines (under labels)
     ctx.save();
-    ctx.strokeStyle=hudColor;
-    ctx.globalAlpha=0.55;
-    ctx.lineWidth=0.6;
-
-    const n = points.length;
-    const maxLines = +linesSlider.value;
-    const maxDist  = +linkSlider.value;
-
-    for (let k=0; k<maxLines && n>1; k++){
+    ctx.strokeStyle=hudColor; ctx.globalAlpha=0.55; ctx.lineWidth=0.6;
+    const n=points.length, maxLines=+linesSlider.value, maxDist=+linkSlider.value;
+    for(let k=0;k<maxLines && n>1;k++){
       const i=(Math.random()*n)|0, j=(Math.random()*n)|0;
-      if (i===j) continue;
-      const ax=points[i].sx, ay=points[i].sy;
-      const bx=points[j].sx, by=points[j].sy;
+      if(i===j) continue;
+      const ax=points[i].sx, ay=points[i].sy, bx=points[j].sx, by=points[j].sy;
       const dx=ax-bx, dy=ay-by;
-      if (dx*dx + dy*dy > maxDist*maxDist) continue;
+      if (dx*dx+dy*dy > maxDist*maxDist) continue;
       ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
     }
     ctx.restore();
 
-    // numbers on top (centered)
-    ctx.fillStyle=hudColor;
-    ctx.font='10px ui-monospace';
-    for (const p of points){
-      const text = p.code;
-      const tw = ctx.measureText(text).width;
-      ctx.save();
-      ctx.shadowColor='rgba(0,0,0,0.6)'; ctx.shadowBlur=4;
+    // numbers on top
+    ctx.fillStyle=hudColor; ctx.font='10px ui-monospace';
+    for(const p of points){
+      const text=p.code, tw=ctx.measureText(text).width;
+      ctx.save(); ctx.shadowColor='rgba(0,0,0,0.6)'; ctx.shadowBlur=4;
       ctx.fillText(text, p.sx - tw/2, p.sy + 3.5);
       ctx.restore();
     }
@@ -196,72 +186,66 @@
 
   function randCode(){return (1000+Math.floor(Math.random()*9000)).toString();}
 
-  // ------- recording helpers -------
-  const recBtn = document.getElementById('recBtn');
-
+  // recording
   function startRecording(){
-    recordedBlobs = [];
-    const stream = recCanvas.captureStream(30); // 30fps target
-    const mime  = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ?
-                  'video/webm;codecs=vp9' :
-                  'video/webm;codecs=vp8';
+    recordedBlobs=[];
+    const stream = recCanvas.captureStream(30);
+    const mime = MediaRecorder && MediaRecorder.isTypeSupported
+      ? (MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9'
+         : (MediaRecorder.isTypeSupported('video/webm;codecs=vp8') ? 'video/webm;codecs=vp8' : 'video/webm'))
+      : null;
+
+    if (!window.MediaRecorder || !mime){
+      alert('Recording not supported on this browser. Use Android/Chrome or use system screen recording.');
+      return;
+    }
+
     mediaRecorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 5_000_000 });
-    mediaRecorder.ondataavailable = (e)=>{ if (e.data && e.data.size) recordedBlobs.push(e.data); };
+    mediaRecorder.ondataavailable = e => { if (e.data && e.data.size) recordedBlobs.push(e.data); };
     mediaRecorder.onstop = ()=>{
       const blob = new Blob(recordedBlobs, { type: 'video/webm' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = `fireworks_${Date.now()}.webm`;
-      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href=url; a.download=`lightmesh_${Date.now()}.webm`; document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
     };
     mediaRecorder.start();
-    isRecording = true;
-    recBtn.textContent = '■ Stop';
+    isRecording=true; recBtn.textContent='■ Stop';
   }
-
   function stopRecording(){
-    if (mediaRecorder && isRecording) mediaRecorder.stop();
-    isRecording = false;
-    recBtn.textContent = '● Record';
+    if(mediaRecorder && isRecording) mediaRecorder.stop();
+    isRecording=false; recBtn.textContent='● Record';
   }
+  document.getElementById('recBtn').onclick = ()=> isRecording ? stopRecording() : startRecording();
 
-  recBtn.onclick = ()=>{
-    if (!isRecording) startRecording(); else stopRecording();
-  };
-
-  // ------- main loop -------
+  // main loop
+  const texSize = 224; // processing resolution
   async function tick(){
     if(vid.readyState>=2){
-      // 1) tracking on low-res square
+      // 1) tracking at low-res
       const s=Math.min(vid.videoWidth,vid.videoHeight);
-      pctx.drawImage(vid,(vid.videoWidth-s)/2,(vid.videoHeight-s)/2,s,s,0,0,proc.width,proc.height);
-      const frame=pctx.getImageData(0,0,proc.width,proc.height).data;
-      if(!bg) bg=new Uint8ClampedArray(proc.width*proc.height);
-      const gray=new Uint8ClampedArray(proc.width*proc.height);
-      for(let i=0,j=0;i<frame.length;i+=4,j++){gray[j]=(frame[i]+frame[i+1]+frame[i+2])/3;}
-      for(let j=0;j<gray.length;j++) bg[j]=bg[j]*ema+gray[j]*(1-ema);
+      pctx.drawImage(vid,(vid.videoWidth-s)/2,(vid.videoHeight-s)/2,s,s,0,0,texSize,texSize);
+      const frame=pctx.getImageData(0,0,texSize,texSize).data;
+      if(!bg) bg=new Uint8ClampedArray(texSize*texSize);
+      const gray=new Uint8ClampedArray(texSize*texSize);
+      for(let i=0,j=0;i<frame.length;i+=4,j++){ gray[j]=(frame[i]+frame[i+1]+frame[i+2])/3; }
+      for(let j=0;j<gray.length;j++) bg[j]=bg[j]*ema + gray[j]*(1-ema);
 
       const brightThr=+thr.value, motThr=+mot.value;
 
-      // motion + bright mask
       const motion=new Uint8ClampedArray(gray.length);
-      for(let j=0;j<gray.length;j++){
-        const d=Math.abs(gray[j]-bg[j]); motion[j]=d>motThr?255:0;
-      }
+      for(let j=0;j<gray.length;j++){ const d=Math.abs(gray[j]-bg[j]); motion[j]=d>motThr?255:0; }
       const mask=new Uint8ClampedArray(gray.length);
-      for(let j=0;j<gray.length;j++){
-        mask[j]=(gray[j]*3>brightThr && motion[j])?1:0;
-      }
+      for(let j=0;j<gray.length;j++){ mask[j]=(gray[j]*3>brightThr && motion[j])?1:0; }
 
-      // pick points
       const want=Math.min(+ptsSlider.value,MAX);
       const bs=8; const picks=[];
-      for(let by=0;by<proc.height;by+=bs){
-        for(let bx=0;bx<proc.width;bx+=bs){
+      for(let by=0;by<texSize;by+=bs){
+        for(let bx=0;bx<texSize;bx+=bs){
           let best=-1,bxBest=0,byBest=0;
-          for(let y=by;y<by+bs&&y<proc.height;y++){
-            for(let x=bx;x<bx+bs&&x<proc.width;x++){
-              const j=y*proc.width+x; if(!mask[j]) continue;
+          for(let y=by;y<by+bs&&y<texSize;y++){
+            for(let x=bx;x<bx+bs&&x<texSize;x++){
+              const j=y*texSize+x; if(!mask[j]) continue;
               const v=gray[j]; if(v>best){best=v;bxBest=x;byBest=y;}
             }
           }
@@ -271,36 +255,34 @@
       picks.sort((a,b)=>b.v-a.v);
       const pts=picks.slice(0,want);
 
-      // smooth + glow sprites
+      // 2) smooth + glow
       const alpha=0.3;
       for(let i=0;i<MAX;i++){
         const p=pts[i];
         if(p){
           const m=mapToScreen(p.x,p.y);
-          if(!smooth[i].ok){smooth[i].x=m.x;smooth[i].y=m.y;smooth[i].ok=true;smooth[i].code=randCode();}
+          if(!smooth[i].ok){smooth[i].x=m.x; smooth[i].y=m.y; smooth[i].ok=true; smooth[i].code=randCode();}
           smooth[i].x=smooth[i].x*(1-alpha)+m.x*alpha;
           smooth[i].y=smooth[i].y*(1-alpha)+m.y*alpha;
           sprites[i].position.set(smooth[i].x,smooth[i].y,0);
           sprites[i].material.opacity=1;
           const size=parseFloat(sizSlider.value);
           sprites[i].scale.set(size,size,1);
-          if (Math.random() < 0.02) smooth[i].code = randCode();
-        }else{
-          smooth[i].ok=false;
-          sprites[i].material.opacity=0;
-          sprites[i].position.set(-9999,-9999,0);
+          if(Math.random()<0.02) smooth[i].code=randCode();
+        } else {
+          smooth[i].ok=false; sprites[i].material.opacity=0; sprites[i].position.set(-9999,-9999,0);
         }
       }
 
-      // render + HUD
+      // 3) render + HUD
       renderer.render(scene,camera);
       const visible=smooth.filter(s=>s.ok).map(s=>({sx:s.x,sy:s.y,code:s.code}));
       drawHUD(visible);
 
-      // 2) composite to recorder canvas (video + glow + HUD)
+      // 4) if recording, composite video + glow + HUD to recCanvas
       if (isRecording){
         recCtx.clearRect(0,0,recCanvas.width,recCanvas.height);
-        coverDrawVideo(recCtx, recCanvas.width, recCanvas.height, facing==='user');
+        coverDrawVideo(recCtx, recCanvas.width, recCanvas.height, facing==='user'); // mirror only on front cam
         recCtx.drawImage(glow, 0, 0);
         recCtx.drawImage(hud,  0, 0);
       }
@@ -312,3 +294,4 @@
 </script>
 </body>
 </html>
+
