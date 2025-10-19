@@ -1,6 +1,3 @@
-Of course\! Here is the complete Markdown code for the README file. You can copy and paste this directly into your `README.md` file.
-
-````markdown
 <h1 align="center">
   <span style="background: linear-gradient(90deg, #00fff0, #ff00ff, #ffd700); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">LumiTracker</span>
 </h1>
@@ -8,13 +5,14 @@ Of course\! Here is the complete Markdown code for the README file. You can copy
 <p align="center">
   <strong>Real-time light and motion art in your browser.</strong>
   <br>
-  LumiTracker tracks the motion of light particles, inspired by the mesmerizing glow of Diwali lights, to create stunning visuals on the fly.
+  LumiTracker tracks the motion of light particles, inspired by Diwali lights, to create stunning tracking visuals on the fly.
   <br>
   <a href="https://paprika1212.github.io/lumi_tracker/"><strong>→ Try it Live</strong></a>
 </p>
 
 ---
 
+## Whats it for?
 
 **LumiTracker** turns your camera into a canvas for light art.
 
@@ -26,7 +24,7 @@ Get that cool, music-video-style light tracking effect without needing heavy sof
 
 -   **Live Controls**: Tweak brightness, motion, contrast, and more on the fly.
 -   **Custom Colors**: Pick glow and text colors to match your vibe.
--   **Visual Modes**: Switch between numbers, lines, geometric blocks and pixel "windows".
+-   **Visual Modes**: Switch between geometric blocks and pixel "windows".
 -   **Built-in Recording**: Save your creations as `.webm` videos directly from your browser.
 -   **Runs Anywhere**: No installs needed. Everything runs locally on your device, GPU-accelerated.
 
@@ -74,7 +72,3 @@ Get that cool, music-video-style light tracking effect without needing heavy sof
 git clone [https://github.com/paprika1212/lumi_tracker.git](https://github.com/paprika1212/lumi_tracker.git)
 cd lumi_tracker
 # Open index.html in your browser
-````
-
-```
-```
