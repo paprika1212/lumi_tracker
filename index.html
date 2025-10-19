@@ -359,7 +359,7 @@
       alert('Recording not supported on this browser. Use Android/Chrome or use system screen recording.');
       return;
     }
-    mediaRecorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 12_000_000 });
+    mediaRecorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 14_000_000 });
     mediaRecorder.ondataavailable = e => { if (e.data && e.data.size) recordedBlobs.push(e.data); };
     mediaRecorder.onstop = ()=>{
       const blob = new Blob(recordedBlobs, { type: 'video/webm' });
