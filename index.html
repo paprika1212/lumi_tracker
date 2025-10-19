@@ -28,8 +28,8 @@
   flex-wrap: wrap; /* wrap nicely on small screens */
 }
 .inline-controls input[type="range"] {
-  width: 160px;         /* comfortable default */
-  max-width: 40vw;      /* responsive */
+  width: 160px;          /* comfortable default */
+  max-width: 40vw;       /* responsive */
 }
 
 
@@ -91,31 +91,27 @@
     <div id="sliderPanel">
       <label>Text:<select id="textColorSel" class="color-selector"></select></label>
       <label>Line:<select id="lineColorSel" class="color-selector"></select></label>
+      <label>Block:<select id="blockColorSel" class="color-selector"></select></label>
 
-      <!-- NEW: Contrast control (50%–200%) -->
       <label>Contrast:<input id="contrast" type="range" min="50" max="200" value="120" step="5"></label>
-
       <label>Threshold:<input id="thr" type="range" min="100" max="700" value="250" step="5"></label>
       <label>Motion:<input id="mot" type="range" min="0" max="60" value="30" step="1"></label>
       <label>No. of pts:<input id="pts" type="range" min="4" max="40" value="16" step="1"></label>
       <label>Size:<input id="siz" type="range" min="0" max="24" value="10" step="1"></label>
       <label>No. of lines:<input id="lines" type="range" min="0" max="200" value="80" step="1"></label>
       <label>Link density:<input id="link" type="range" min="10" max="300" value="180" step="5"></label>
-       <label class="inline-controls">
-  <span>Windows:</span>
-  <input id="windows" type="checkbox">
-  <span>Size:</span>
-  <input id="winSize" type="range" min="10" max="80" value="20" step="1">
-</label>
-
-<label class="inline-controls">
-  <span>Blocks:</span>
-  <input id="blocks" type="checkbox">
-  <span>Size:</span>
-  <input id="blkSize" type="range" min="10" max="80" value="20" step="1">
-</label>
-
-
+      <label class="inline-controls">
+          <span>Windows:</span>
+          <input id="windows" type="checkbox">
+          <span>Size:</span>
+          <input id="winSize" type="range" min="10" max="80" value="20" step="1">
+      </label>
+      <label class="inline-controls">
+          <span>Blocks:</span>
+          <input id="blocks" type="checkbox">
+          <span>Size:</span>
+          <input id="blkSize" type="range" min="10" max="80" value="20" step="1">
+      </label>
     </div>
     <button class="btn" id="controlsToggle">Controls</button>
   </div>
@@ -141,14 +137,12 @@
   const windowsCheckbox = document.getElementById('windows');
   const blkSizeSlider = document.getElementById('blkSize');
   const winSizeSlider = document.getElementById('winSize');
-
-  // NEW: Contrast slider + factor (0.5–2.0)
   const contrastSlider = document.getElementById('contrast');
+  
   let contrastFactor = 1.2; // default 120%
   const contrastFromSlider = () => (parseInt(contrastSlider.value,10) / 100);
   contrastSlider.oninput = () => {
     contrastFactor = contrastFromSlider();
-    // also style the preview for user visual feedback
     vid.style.filter = `contrast(${contrastFactor})`;
   };
 
@@ -164,9 +158,11 @@
 
   const textColorSel = document.getElementById('textColorSel');
   const lineColorSel = document.getElementById('lineColorSel');
+  const blockColorSel = document.getElementById('blockColorSel'); // NEW
   const colorOptions = ['white','cyan','magenta','lime','red','yellow'];
   let textColor = 'white';
   let lineColor = 'white';
+  let blockColor = 'white'; // NEW
 
   function setupColorSelector(selectEl, callback) {
     colorOptions.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;selectEl.appendChild(o);});
@@ -174,62 +170,28 @@
   }
   setupColorSelector(textColorSel, (c) => textColor = c);
   setupColorSelector(lineColorSel, (c) => lineColor = c);
+  setupColorSelector(blockColorSel, (c) => blockColor = c); // NEW
   
   // --- CAMERA SELECTION / FLIP FIX ---
   let facing = 'environment';
-  let videoDevices = [];
-  let currentDeviceId = null;
-
-  async function refreshDevices() {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    videoDevices = devices.filter(d => d.kind === 'videoinput');
-  }
-
+  
   async function startCamera() {
-    // stop old tracks
     if (vid.srcObject) vid.srcObject.getTracks().forEach(t => t.stop());
-
-    // Try to pick by facingMode first; if that fails, fall back to deviceId rotation.
-    let constraints = { video: { width:{ideal:1920}, height:{ideal:1080}, facingMode: facing }, audio: false };
-
+    const constraints = { video: { width:{ideal:1920}, height:{ideal:1080}, facingMode: facing }, audio: false };
     try {
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      vid.srcObject = stream; await vid.play();
-      await refreshDevices();
-
-      // try to record which deviceId we got (when available)
-      const track = stream.getVideoTracks()[0];
-      const settings = track.getSettings ? track.getSettings() : {};
-      currentDeviceId = settings.deviceId || currentDeviceId;
-
-    } catch (e) {
-      // facingMode not honored -> fallback to cycling deviceId
-      await refreshDevices();
-      if (videoDevices.length) {
-        // heuristic: pick first for "environment", last for "user" if labels are available
-        const back = videoDevices.find(d => /back|rear|environment/i.test(d.label));
-        const front = videoDevices.find(d => /front|user/i.test(d.label));
-        const pick = (facing === 'user') ? (front || videoDevices[0]) : (back || videoDevices[videoDevices.length-1]);
-
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: pick.deviceId, width:{ideal:1920}, height:{ideal:1080} },
-          audio: false
-        });
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
         vid.srcObject = stream; await vid.play();
-        currentDeviceId = pick.deviceId;
-      }
+    } catch(e) {
+        alert('Could not start camera. Please grant permission and check if another app is using it.');
+        console.error(e);
     }
-
-    // mirror preview for selfie cam
     vid.style.transform = (facing === 'user') ? 'scaleX(-1)' : 'none';
-    // keep contrast effect applied on restart
     vid.style.filter = `contrast(${contrastFactor})`;
   }
 
   await startCamera();
 
   document.getElementById('flip').onclick = async () => {
-    // toggle logical facing
     facing = (facing === 'user' ? 'environment' : 'user');
     await startCamera();
   };
@@ -270,10 +232,9 @@
   const smooth=Array.from({length:MAX},()=>({x:0,y:0,ok:false}));
   const ema=0.94; let bg=null;
 
-  // FIXED: cover draw typo (tAsp calculation)
   function coverDrawVideo(ctx, targetW, targetH, mirror=false){
     const vW=vid.videoWidth, vH=vid.videoHeight; if(!vW||!vH) return;
-    const vAsp = vW / vH, tAsp = targetW / targetH;   // <-- fixed
+    const vAsp = vW / vH, tAsp = targetW / targetH;
     let drawW, drawH;
     if (tAsp>vAsp){ drawW=targetW; drawH=targetW/vAsp; } else { drawH=targetH; drawW=targetH*vAsp; }
     const offX=(targetW-drawW)/2, offY=(targetH-drawH)/2;
@@ -336,17 +297,15 @@
       }
   }
 
+  // MODIFIED: drawBlocks function
   function drawBlocks(targetCtx, points) {
-      targetCtx.strokeStyle = lineColor;
-      targetCtx.lineWidth = 0.8;
+      targetCtx.strokeStyle = blockColor; // Use new blockColor variable
+      targetCtx.lineWidth = 1.2;
       const blkSize = parseFloat(blkSizeSlider.value);
       for (const p of points) {
           const x = p.sx - blkSize / 2, y = p.sy - blkSize / 2;
           targetCtx.strokeRect(x, y, blkSize, blkSize);
-          targetCtx.beginPath();
-          targetCtx.moveTo(x, y); targetCtx.lineTo(x + blkSize, y + blkSize);
-          targetCtx.moveTo(x + blkSize, y); targetCtx.lineTo(x, y + blkSize);
-          targetCtx.stroke();
+          // The lines for the cross have been removed.
       }
   }
 
@@ -365,7 +324,7 @@
       }
   }
   
-  // Main HUD drawing function for display
+  // MODIFIED: Main HUD drawing function
   function drawHUD(points) {
     const w=hud.width,h=hud.height;
     ctx.clearRect(0,0,w,h);
@@ -382,10 +341,9 @@
     } else if (blocksCheckbox.checked) {
         drawBlocks(ctx, points);
     }
-
-    if (!blocksCheckbox.checked) {
-        drawNumbers(ctx, points);
-    }
+    
+    // Numbers are now always drawn, so they will appear on top of blocks.
+    drawNumbers(ctx, points);
   }
 
   function randCode(){return (1000+Math.floor(Math.random()*9000)).toString();}
@@ -421,9 +379,7 @@
 
   const texSize = 224;
 
-  // Linear contrast adjust helper for detection (affects pctx pixels)
-  function applyContrast(v /*0..255*/, c /*0.5..2.0*/) {
-    // center at 128, scale, clamp
+  function applyContrast(v, c) {
     let out = 128 + (v - 128) * c;
     if (out < 0) out = 0; else if (out > 255) out = 255;
     return out;
@@ -431,21 +387,18 @@
 
   async function tick(){
     if(vid.readyState>=2){
-      // draw into processing canvas (square crop)
       const s=Math.min(vid.videoWidth,vid.videoHeight);
       pctx.drawImage(vid,(vid.videoWidth-s)/2,(vid.videoHeight-s)/2,s,s,0,0,texSize,texSize);
       const frame=pctx.getImageData(0,0,texSize,texSize).data;
       if(!bg) bg=new Uint8ClampedArray(texSize*texSize);
       const gray=new Uint8ClampedArray(texSize*texSize);
 
-      // compute grayscale then apply contrast factor for detection pipeline
-      const cfac = contrastFactor; // 0.5..2.0
+      const cfac = contrastFactor;
       for(let i=0,j=0;i<frame.length;i+=4,j++){
         const g = (frame[i]+frame[i+1]+frame[i+2])/3;
         gray[j] = applyContrast(g, cfac);
       }
 
-      // EMA background
       for(let j=0;j<gray.length;j++) bg[j]=bg[j]*ema + gray[j]*(1-ema);
 
       const brightThr=+thr.value, motThr=+mot.value;
@@ -481,8 +434,6 @@
           if(!smooth[i].ok){smooth[i].x=m.x; smooth[i].y=m.y; smooth[i].ok=true; smooth[i].code=randCode();}
           smooth[i].x=smooth[i].x*(1-alpha)+m.x*alpha;
           smooth[i].y=smooth[i].y*(1-alpha)+m.y*alpha;
-          smooth[i].bx=p.bx; smooth[i].by=p.by;
-          smooth[i].origX = p.x; smooth[i].origY = p.y;
           sprites[i].position.set(smooth[i].x,smooth[i].y,0);
           sprites[i].material.opacity=1;
           const size=parseFloat(sizSlider.value);
@@ -494,7 +445,7 @@
       }
 
       renderer.render(scene,camera);
-      const visible=smooth.filter(s=>s.ok).map(s=>({sx:s.x,sy:s.y,code:s.code,bx:s.bx,by:s.by, x:s.origX, y:s.origY}));
+      const visible=smooth.filter(s=>s.ok).map(s=>({sx:s.x,sy:s.y,code:s.code}));
       
       glow.style.display = windowsCheckbox.checked ? 'none' : 'block';
       drawHUD(visible);
@@ -506,7 +457,7 @@
               recCtx.fillRect(0, 0, recCanvas.width, recCanvas.height);
               drawLines(recCtx, visible);
               drawWindows(recCtx, visible);
-              drawNumbers(recCtx, visible);
+              drawNumbers(recCtx, visible); // Also draw numbers in recording
           } else {
               coverDrawVideo(recCtx, recCanvas.width, recCanvas.height, facing === 'user');
               recCtx.drawImage(glow, 0, 0);
