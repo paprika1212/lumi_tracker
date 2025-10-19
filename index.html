@@ -350,7 +350,7 @@
 
   function startRecording(){
     recordedBlobs=[];
-    const stream = recCanvas.captureStream(30);
+    const stream = recCanvas.captureStream(60);
     const mime = MediaRecorder && MediaRecorder.isTypeSupported
       ? (MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9'
          : (MediaRecorder.isTypeSupported('video/webm;codecs=vp8') ? 'video/webm;codecs=vp8' : 'video/webm'))
@@ -359,7 +359,7 @@
       alert('Recording not supported on this browser. Use Android/Chrome or use system screen recording.');
       return;
     }
-    mediaRecorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 5_000_000 });
+    mediaRecorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 15_000_000 });
     mediaRecorder.ondataavailable = e => { if (e.data && e.data.size) recordedBlobs.push(e.data); };
     mediaRecorder.onstop = ()=>{
       const blob = new Blob(recordedBlobs, { type: 'video/webm' });
